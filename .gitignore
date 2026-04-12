@@ -1,0 +1,16 @@
+# Global safety ignores
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*keystore*
+
+# Dependencies and build outputs
+**/node_modules/
+**/dist/
+**/coverage/
+
+# OS/editor noise
+**/.DS_Store
+**/*.log
+.vscode/
