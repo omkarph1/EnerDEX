@@ -2,9 +2,10 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./EToken.sol";
 
-contract EnergyMarketplace is Ownable {
+contract EnergyMarketplace is Ownable, ReentrancyGuard {
 
     EToken public energyToken;
 
@@ -82,7 +83,7 @@ contract EnergyMarketplace is Ownable {
     }
 
     // ─── Buy Energy ────────────────────────────────────────
-    function buyEnergy(uint256 listingId) external payable {
+    function buyEnergy(uint256 listingId) external payable nonReentrant {
         Listing storage listing = listings[listingId];
 
         require(listing.isActive, "Listing is not active");
@@ -94,7 +95,7 @@ contract EnergyMarketplace is Ownable {
         uint256 fee = (listing.priceWei * FEE_PERCENT * (100 - discount)) / 10000;
         uint256 sellerAmount = listing.priceWei - fee;
 
-        // Mark inactive BEFORE transfers (security best practice)
+        // Mark inactive BEFORE transfers (checks-effects-interactions)
         listing.isActive = false;
         collectedFees += fee;
 
@@ -134,8 +135,9 @@ contract EnergyMarketplace is Ownable {
     }
 
     // ─── Owner Withdraw Fees ───────────────────────────────
-    function withdrawFees() external onlyOwner {
+    function withdrawFees() external onlyOwner nonReentrant {
         uint256 amount = collectedFees;
+        require(amount > 0, "No fees to withdraw");
         collectedFees = 0;
         (bool sent, ) = owner().call{value: amount}("");
         require(sent, "Withdrawal failed");
