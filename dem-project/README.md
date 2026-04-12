@@ -1,69 +1,122 @@
 # dem-project
 
-Hardhat smart-contract backend for EnerDEX.
+> Hardhat smart contract workspace for EnerDEX.
 
-This package contains:
-- energy token contract (`EToken`)
-- marketplace contract (`EnergyMarketplace`)
-- sample contract (`SimpleStorage`)
-- deployment scripts
-- test suites
+This package contains all on-chain logic for the EnerDEX platform: the ERC-20 energy token, the escrow marketplace, deployment scripts, and the full test suite.
+
+---
 
 ## Stack
 
-- Hardhat
-- Solidity 0.8.28
-- OpenZeppelin Contracts
-- Hardhat Toolbox (Ethers + Chai)
+| Tool | Version |
+|---|---|
+| Hardhat | `^2.28.6` |
+| Solidity | `0.8.28` |
+| OpenZeppelin Contracts | `^5.6.1` |
+| Hardhat Toolbox (Ethers + Chai) | `^6.1.2` |
+| Node.js | v18+ |
+
+---
 
 ## Contracts
 
 ### `contracts/EToken.sol`
 
-- ERC20 token name: `EnergyToken`
-- symbol: `ETK`
-- constructor mints 1000 ETK to deployer
-- `mint(address,uint256)` is owner-only and scales by token decimals internally
+ERC-20 token representing energy units.
+
+- **Name:** `EnergyToken`  
+- **Symbol:** `ETK`  
+- **1 ETK = 1 kWh** of energy
+- **Constructor:** mints 1000 ETK to the deployer at deployment
+- **`mint(address to, uint256 amount)`:** owner-only; accepts human units (e.g. `500`) and scales by `10^18` internally
+
+> **Unit convention:** Always pass human-readable token amounts to `mint`. The contract applies the decimal multiplier internally — do **not** pre-scale with `parseUnits`.
+
+---
 
 ### `contracts/EnergyMarketplace.sol`
 
-- sellers create ETK listings for ETH
-- ETK moved into contract escrow via `transferFrom`
-- buyers purchase with exact ETH
-- platform fee base: 2%
-- loyalty points for buyer and seller on successful trades
-- fee discount tiers by loyalty points:
-  - 10+ points: 10%
-  - 50+ points: 25%
-  - 100+ points: 50%
-- owner can withdraw `collectedFees`
+Peer-to-peer energy trading contract with escrow, fees, and loyalty rewards.
+
+**Constants:**
+
+| Constant | Value |
+|---|---|
+| `FEE_PERCENT` | `2` (2% platform fee per trade) |
+| `POINTS_PER_TRADE` | `10` (loyalty points awarded to buyer and seller) |
+
+**Key state variables:**
+
+| Variable | Description |
+|---|---|
+| `energyToken` | Reference to the `EToken` contract |
+| `listings` | Mapping of listing ID → `Listing` struct |
+| `listingCount` | Total number of listings ever created |
+| `loyaltyPoints` | Loyalty points per address |
+| `collectedFees` | Accumulated platform fees (in wei) |
+
+**Public functions:**
+
+| Function | Description |
+|---|---|
+| `listEnergy(amountETK, priceWei)` | Escrows ETK and creates an active listing |
+| `buyEnergy(listingId)` | Purchases a listing; applies loyalty discount; transfers ETK to buyer and ETH to seller |
+| `cancelListing(listingId)` | Seller cancels an active listing; escrowed ETK is returned |
+| `withdrawFees()` | Owner-only; transfers all collected fees to the owner |
+| `getDiscount(address)` | Returns the fee discount percentage for a given address |
+| `getListing(listingId)` | Returns full listing details |
+
+**Loyalty discount tiers (applied to the buyer):**
+
+| Loyalty Points | Fee Discount |
+|---|---|
+| < 10 | 0% |
+| ≥ 10 | 10% |
+| ≥ 50 | 25% |
+| ≥ 100 | 50% |
+
+**Security:** `buyEnergy` sets `listing.isActive = false` and accumulates fees *before* performing any ETH or ETK transfers, following the checks-effects-interactions pattern.
+
+---
 
 ### `contracts/SimpleStorage.sol`
 
-Minimal sample contract used for basic deployment demonstration.
+Minimal standalone storage contract included for basic deployment demonstration. Not used in the EnerDEX trading flow.
 
-## Scripts (Current)
+---
 
-`package.json` includes:
+## Scripts
 
-- `npm run compile` -> `hardhat compile`
-- `npm test` -> `hardhat test`
-- `npm run node` -> `hardhat node`
-- `npm run deploy` -> `hardhat run scripts/deployMarketplace.js --network localhost`
+| Script | Command | Description |
+|---|---|---|
+| `deployMarketplace.js` | `npm run deploy` | Full deployment + frontend ABI/env sync (primary script) |
+| `deployToken.js` | — | Deploy `EToken` only |
+| `deploy.js` | — | Deploy `SimpleStorage` only |
 
-## Deployment Behavior (Updated)
+### `deployMarketplace.js` — what it does
 
-`scripts/deployMarketplace.js` now performs end-to-end setup:
+1. Deploys `EToken`
+2. Deploys `EnergyMarketplace` (passing the token address)
+3. Mints 500 ETK to `signers[1]` (the local test seller account)
+4. Copies compiled ABIs into `dem-frontend/src/contracts/`:
+   - `EToken.json`
+   - `EnergyMarketplace.json`
+5. Writes `dem-frontend/.env` with:
+   - `VITE_ETOKEN_ADDRESS`
+   - `VITE_MARKETPLACE_ADDRESS`
 
-1. Deploy `EToken`
-2. Deploy `EnergyMarketplace`
-3. Mint 500 ETK to local seller account (`signers[1]`)
-4. Copy ABIs to frontend:
-	- `dem-frontend/src/contracts/EToken.json`
-	- `dem-frontend/src/contracts/EnergyMarketplace.json`
-5. Write frontend `.env` with deployed addresses:
-	- `VITE_ETOKEN_ADDRESS`
-	- `VITE_MARKETPLACE_ADDRESS`
+---
+
+## npm Scripts
+
+```bash
+npm run compile   # Compile all Solidity contracts
+npm test          # Run the full test suite
+npm run node      # Start a local Hardhat blockchain node (http://127.0.0.1:8545)
+npm run deploy    # Deploy contracts and auto-sync dem-frontend
+```
+
+---
 
 ## Quick Start
 
@@ -72,40 +125,70 @@ cd dem-project
 npm install
 npm run compile
 npm test
-npm run node
 ```
 
-In another terminal:
+To start a local blockchain and deploy:
 
 ```bash
-cd dem-project
+# Terminal A
+npm run node
+
+# Terminal B
 npm run deploy
 ```
 
-## Standalone Deploy Scripts
+---
 
-- `scripts/deploy.js`: deploy only `SimpleStorage`
-- `scripts/deployToken.js`: deploy only `EToken`
-- `scripts/deployMarketplace.js`: deploy token + marketplace and sync frontend
+## Test Coverage
 
-## Test Coverage Snapshot
+### `test/EToken.test.js`
 
-### EToken tests
-- initial deployer balance
-- metadata (name/symbol)
-- owner mint success
-- non-owner mint rejection
+- Deployer receives 1000 ETK on deployment
+- Token name is `EnergyToken`, symbol is `ETK`
+- Owner can mint tokens to any address
+- Non-owner `mint` call reverts with access error
 
-### EnergyMarketplace tests
-- listing creation and active state
-- buy flow token/ETH transfer behavior
-- fee accounting
-- loyalty points accrual
-- discount behavior on subsequent trade
-- cancel listing path
-- revert conditions (inactive/self-buy/wrong ETH)
-- owner fee withdrawal
+### `test/EnergyMarketplace.test.js`
 
-## Unit Convention
+- Listing creation correctly escrows ETK and sets active state
+- Buy flow transfers correct ETK amount to buyer and ETH minus fee to seller
+- 2% platform fee is calculated and accumulated in `collectedFees`
+- Loyalty points (10 each) are awarded to buyer and seller after each trade
+- Fee discount is correctly applied when buyer has sufficient points
+- Cancel listing returns escrowed ETK to seller and deactivates listing
+- Reverts: buying an inactive listing
+- Reverts: seller attempting to buy their own listing
+- Reverts: sending incorrect ETH amount
+- Owner fee withdrawal transfers full `collectedFees` balance and resets it to zero
 
-Because token `mint` scales by decimals internally, callers should pass human units (example: `500`) rather than pre-scaled base units.
+---
+
+## Hardhat Configuration
+
+```js
+// hardhat.config.js
+module.exports = {
+  solidity: "0.8.28",
+  networks: {
+    localhost: {
+      url: "http://127.0.0.1:8545",
+      timeout: 60000,
+    },
+  },
+};
+```
+
+---
+
+## Notes
+
+- ABI files in `artifacts/` are generated by `npm run compile` and are gitignored.
+- The ABI copies in `dem-frontend/src/contracts/` are written by `npm run deploy` and are gitignored.
+- Running `npm run deploy` without an active Hardhat node will fail — always start the node first.
+
+---
+
+## Related Documentation
+
+- Full project report: [`../REPORT_EnerDEX_FULL.md`](../REPORT_EnerDEX_FULL.md)
+- Detailed contract report: [`REPORT_DEM_PROJECT.md`](./REPORT_DEM_PROJECT.md)
