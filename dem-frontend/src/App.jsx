@@ -88,7 +88,7 @@ function App() {
         setIsOwner(owner.toLowerCase() === account.toLowerCase());
         const fees = await marketplace.collectedFees();
         setCollectedFees(parseFloat(ethers.formatEther(fees)).toFixed(6));
-      } catch (_) {}
+      } catch (_) { }
 
       // Load listings
       const count = await marketplace.listingCount();
@@ -112,6 +112,15 @@ function App() {
   }, [account]);
 
   // ─── Load transaction history ───────────────────────────────────────────────
+  // Helper: format unix timestamp → "Apr 12, 2:30 PM"
+  const formatTimestamp = (unixTs) => {
+    if (!unixTs) return null;
+    return new Date(unixTs * 1000).toLocaleString("en-IN", {
+      day: "numeric", month: "short",
+      hour: "2-digit", minute: "2-digit", hour12: true,
+    });
+  };
+
   const loadHistory = useCallback(async () => {
     if (!account) return;
     setLoadingHistory(true);
@@ -127,6 +136,13 @@ function App() {
         marketplace.queryFilter(listedFilter, 0, "latest"),
       ]);
 
+      // Fetch timestamps for all unique block numbers in parallel
+      const allEvents = [...tradedEvents, ...listedEvents];
+      const uniqueBlocks = [...new Set(allEvents.map((e) => e.blockNumber))];
+      const blockData = await Promise.all(uniqueBlocks.map((bn) => provider.getBlock(bn)));
+      const blockTimestamps = {};
+      blockData.forEach((b) => { if (b) blockTimestamps[b.number] = b.timestamp; });
+
       // Process traded events
       const trades = tradedEvents.map((e) => ({
         type: "trade",
@@ -138,6 +154,7 @@ function App() {
         priceWei: e.args[4],
         priceETH: ethers.formatEther(e.args[4] || 0n),
         blockNumber: e.blockNumber,
+        timestamp: blockTimestamps[e.blockNumber] || null,
         isBuyer: e.args[1]?.toLowerCase() === account.toLowerCase(),
         isSeller: e.args[2]?.toLowerCase() === account.toLowerCase(),
       }));
@@ -151,6 +168,7 @@ function App() {
         amountETK: e.args[2]?.toString(),
         priceETH: ethers.formatEther(e.args[3] || 0n),
         blockNumber: e.blockNumber,
+        timestamp: blockTimestamps[e.blockNumber] || null,
         isMine: e.args[1]?.toLowerCase() === account.toLowerCase(),
       }));
 
@@ -298,8 +316,8 @@ function App() {
   function loyaltyTier(pts) {
     const p = parseInt(pts);
     if (p >= 100) return { label: "🥇 Gold", color: "#f0b429", next: null, progress: 100 };
-    if (p >= 50)  return { label: "🥈 Silver", color: "#a0aec0", next: 100, progress: (p - 50) / 50 * 100 };
-    if (p >= 10)  return { label: "🥉 Bronze", color: "#c97d4e", next: 50, progress: (p - 10) / 40 * 100 };
+    if (p >= 50) return { label: "🥈 Silver", color: "#a0aec0", next: 100, progress: (p - 50) / 50 * 100 };
+    if (p >= 10) return { label: "🥉 Bronze", color: "#c97d4e", next: 50, progress: (p - 10) / 40 * 100 };
     return { label: "⭐ Starter", color: "#888", next: 10, progress: p / 10 * 100 };
   }
 
@@ -399,10 +417,10 @@ function App() {
           <nav className="tabs">
             {[
               { id: "dashboard", icon: "🏠", label: "Dashboard" },
-              { id: "market",    icon: "🏪", label: "Market" },
-              { id: "history",   icon: "📜", label: "History" },
-              { id: "income",    icon: "💰", label: "Income" },
-              { id: "loyalty",   icon: "🏆", label: "Loyalty" },
+              { id: "market", icon: "🏪", label: "Market" },
+              { id: "history", icon: "📜", label: "History" },
+              { id: "income", icon: "💰", label: "Income" },
+              { id: "loyalty", icon: "🏆", label: "Loyalty" },
             ].map((t) => (
               <button
                 key={t.id}
@@ -476,7 +494,7 @@ function App() {
                   {sellAmount && sellPrice && (
                     <div className="price-preview">
                       💡 You'll receive <strong>{(parseFloat(sellPrice) * 0.98).toFixed(6)} ETH</strong> after 2% platform fee
-                      {discount > 0 && ` (with your ${discount}% loyalty discount → ${(parseFloat(sellPrice) * (1 - (2 * (1 - discount/100)) / 100)).toFixed(6)} ETH)`}
+                      {discount > 0 && ` (with your ${discount}% loyalty discount → ${(parseFloat(sellPrice) * (1 - (2 * (1 - discount / 100)) / 100)).toFixed(6)} ETH)`}
                     </div>
                   )}
                 </div>
@@ -651,14 +669,14 @@ function App() {
                                 ? tx.isBuyer
                                   ? `Bought ${tx.amountETK} ETK`
                                   : tx.isSeller
-                                  ? `Sold ${tx.amountETK} ETK`
-                                  : `Trade: ${tx.amountETK} ETK`
+                                    ? `Sold ${tx.amountETK} ETK`
+                                    : `Trade: ${tx.amountETK} ETK`
                                 : tx.isMine
-                                ? `Listed ${tx.amountETK} ETK`
-                                : `Listing: ${tx.amountETK} ETK`}
+                                  ? `Listed ${tx.amountETK} ETK`
+                                  : `Listing: ${tx.amountETK} ETK`}
                             </div>
                             <div className="tx-meta">
-                              Block #{tx.blockNumber}
+                              {tx.timestamp ? formatTimestamp(tx.timestamp) : `Block #${tx.blockNumber}`}
                               {tx.type === "trade" && ` · ${tx.priceETH} ETH`}
                               {tx.type === "listed" && ` · ${tx.priceETH} ETH`}
                             </div>
@@ -777,7 +795,7 @@ function App() {
                             <div className="tx-details">
                               <div className="tx-title">Sold {tx.amountETK} ETK</div>
                               <div className="tx-meta">
-                                Buyer: {shortAddr(tx.buyer)} · Block #{tx.blockNumber}
+                                Buyer: {shortAddr(tx.buyer)} · {tx.timestamp ? formatTimestamp(tx.timestamp) : `Block #${tx.blockNumber}`}
                               </div>
                             </div>
                             <div className="tx-right">
@@ -848,7 +866,7 @@ function App() {
                       { tier: "⭐ Starter", pts: "0–9 pts", disc: "0% off fee", desc: "Default for all new users" },
                       { tier: "🥉 Bronze", pts: "10–49 pts", disc: "10% off fee", desc: "Save 0.2% on every trade" },
                       { tier: "🥈 Silver", pts: "50–99 pts", disc: "25% off fee", desc: "Save 0.5% on every trade" },
-                      { tier: "🥇 Gold",   pts: "100+ pts",  disc: "50% off fee", desc: "Save 1% on every trade — maximum discount!" },
+                      { tier: "🥇 Gold", pts: "100+ pts", disc: "50% off fee", desc: "Save 1% on every trade — maximum discount!" },
                     ].map((t, i) => (
                       <div key={i} className={`tier-row ${parseInt(loyaltyPoints) >= [0, 10, 50, 100][i] ? "active-tier" : ""}`}>
                         <div className="tier-row-name">{t.tier}</div>
