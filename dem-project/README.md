@@ -1,153 +1,111 @@
 # dem-project
 
-Hardhat smart contract project for the BLC decentralized energy marketplace.
+Hardhat smart-contract backend for EnerDEX.
 
-This folder contains:
-- ETK token contract
-- marketplace contract with escrow, fees, and loyalty system
+This package contains:
+- energy token contract (`EToken`)
+- marketplace contract (`EnergyMarketplace`)
+- sample contract (`SimpleStorage`)
 - deployment scripts
-- unit/integration tests
+- test suites
 
-## Tech Stack
+## Stack
 
 - Hardhat
 - Solidity 0.8.28
 - OpenZeppelin Contracts
-- Ethers + Chai (through hardhat-toolbox)
+- Hardhat Toolbox (Ethers + Chai)
 
 ## Contracts
 
-## 1) EToken.sol
+### `contracts/EToken.sol`
 
-ERC-20 token representing energy units.
+- ERC20 token name: `EnergyToken`
+- symbol: `ETK`
+- constructor mints 1000 ETK to deployer
+- `mint(address,uint256)` is owner-only and scales by token decimals internally
 
-Key behavior:
-- token name: EnergyToken
-- symbol: ETK
-- initial mint: 1000 ETK to deployer
-- only owner can mint new supply
+### `contracts/EnergyMarketplace.sol`
 
-## 2) EnergyMarketplace.sol
+- sellers create ETK listings for ETH
+- ETK moved into contract escrow via `transferFrom`
+- buyers purchase with exact ETH
+- platform fee base: 2%
+- loyalty points for buyer and seller on successful trades
+- fee discount tiers by loyalty points:
+  - 10+ points: 10%
+  - 50+ points: 25%
+  - 100+ points: 50%
+- owner can withdraw `collectedFees`
 
-Marketplace for peer-to-peer ETK trading.
+### `contracts/SimpleStorage.sol`
 
-Core features:
-- sellers list ETK for ETH price
-- ETK goes to escrow in contract
-- buyers purchase with exact ETH amount
-- platform fee collected (base 2%)
-- loyalty points awarded to buyer and seller
-- discount tiers based on loyalty points
-- owner can withdraw collected fees
+Minimal sample contract used for basic deployment demonstration.
 
-Discount tiers:
-- 10+ points -> 10% fee discount
-- 50+ points -> 25% fee discount
-- 100+ points -> 50% fee discount
+## Scripts (Current)
 
-## 3) SimpleStorage.sol
+`package.json` includes:
 
-Small sample contract used for basic Hardhat deployment/demo.
+- `npm run compile` -> `hardhat compile`
+- `npm test` -> `hardhat test`
+- `npm run node` -> `hardhat node`
+- `npm run deploy` -> `hardhat run scripts/deployMarketplace.js --network localhost`
 
-## Project Structure
+## Deployment Behavior (Updated)
 
-- contracts/: Solidity contracts
-- scripts/: deployment scripts
-- test/: Hardhat test suite
-- artifacts/: generated ABI and bytecode
-- cache/: hardhat build cache
+`scripts/deployMarketplace.js` now performs end-to-end setup:
 
-## Prerequisites
+1. Deploy `EToken`
+2. Deploy `EnergyMarketplace`
+3. Mint 500 ETK to local seller account (`signers[1]`)
+4. Copy ABIs to frontend:
+	- `dem-frontend/src/contracts/EToken.json`
+	- `dem-frontend/src/contracts/EnergyMarketplace.json`
+5. Write frontend `.env` with deployed addresses:
+	- `VITE_ETOKEN_ADDRESS`
+	- `VITE_MARKETPLACE_ADDRESS`
 
-- Node.js 18+
-- npm
-
-## Installation
+## Quick Start
 
 ```bash
+cd dem-project
 npm install
+npm run compile
+npm test
+npm run node
 ```
 
-## Compile
+In another terminal:
 
 ```bash
-npx hardhat compile
+cd dem-project
+npm run deploy
 ```
 
-## Test
+## Standalone Deploy Scripts
 
-```bash
-npx hardhat test
-```
+- `scripts/deploy.js`: deploy only `SimpleStorage`
+- `scripts/deployToken.js`: deploy only `EToken`
+- `scripts/deployMarketplace.js`: deploy token + marketplace and sync frontend
 
-## Run Local Chain
+## Test Coverage Snapshot
 
-```bash
-npx hardhat node
-```
-
-## Deployment Scripts
-
-### Deploy only SimpleStorage
-
-```bash
-npx hardhat run scripts/deploy.js --network localhost
-```
-
-### Deploy only EToken
-
-```bash
-npx hardhat run scripts/deployToken.js --network localhost
-```
-
-### Deploy EToken + EnergyMarketplace (+ seed mint)
-
-```bash
-npx hardhat run scripts/deployMarketplace.js --network localhost
-```
-
-This script:
-1. Deploys EToken
-2. Deploys EnergyMarketplace with token address
-3. Mints 500 ETK to a test seller account
-4. Prints both contract addresses
-
-## Frontend Integration (dem-frontend)
-
-After deployment:
-
-1. Copy contract addresses into dem-frontend/src/contracts/config.js
-2. Copy ABIs into dem-frontend/src/contracts:
-- artifacts/contracts/EToken.sol/EToken.json
-- artifacts/contracts/EnergyMarketplace.sol/EnergyMarketplace.json
-
-## Test Coverage Overview
-
-EToken tests include:
-- initial supply
-- token metadata
-- owner minting
+### EToken tests
+- initial deployer balance
+- metadata (name/symbol)
+- owner mint success
 - non-owner mint rejection
 
-EnergyMarketplace tests include:
-- listing creation
-- purchase transfer behavior
+### EnergyMarketplace tests
+- listing creation and active state
+- buy flow token/ETH transfer behavior
 - fee accounting
-- loyalty point accrual
-- discount fee behavior
-- listing cancellation
-- expected revert scenarios
+- loyalty points accrual
+- discount behavior on subsequent trade
+- cancel listing path
+- revert conditions (inactive/self-buy/wrong ETH)
 - owner fee withdrawal
 
-## Important Unit Convention
+## Unit Convention
 
-EToken mint function currently multiplies input amount by decimals internally.
-
-Clients should send human token amount to mint (example: 500), not pre-scaled base units.
-
-## Common Local Workflow
-
-1. Start node: npx hardhat node
-2. Deploy contracts: npx hardhat run scripts/deployMarketplace.js --network localhost
-3. Update frontend config and ABIs
-4. Start frontend and test end-to-end flow
+Because token `mint` scales by decimals internally, callers should pass human units (example: `500`) rather than pre-scaled base units.

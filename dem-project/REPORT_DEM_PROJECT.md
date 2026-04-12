@@ -1,200 +1,153 @@
 # dem-project Detailed Report
 
-## 1) Purpose and Scope
-The `dem-project` folder is the blockchain backend of BLC, built with Hardhat. It defines and tests smart contracts for:
-- ETK token issuance (`EToken`)
-- Peer-to-peer energy trading with escrow (`EnergyMarketplace`)
-- A sample learning contract (`SimpleStorage`)
+## 1) Scope
+`dem-project` is the blockchain core of EnerDEX.
 
-It also includes deployment scripts and generated artifacts used by the frontend.
+It provides:
+- token issuance (`EToken`)
+- escrow marketplace logic (`EnergyMarketplace`)
+- test coverage and local deployment workflows
 
-## 2) Technology and Toolchain
+## 2) Toolchain
 
-### Core components
-- Hardhat 2.x (development framework)
-- Ethers integration via Hardhat toolbox
-- Chai-based contract tests
-- OpenZeppelin Contracts v5 for audited ERC20 and Ownable primitives
+- Hardhat `^2.28.6`
+- Solidity compiler target `0.8.28`
+- Hardhat Toolbox (`@nomicfoundation/hardhat-toolbox`)
+- OpenZeppelin Contracts `^5.6.1`
 
-### Solidity settings
-- `hardhat.config.js` sets compiler target to Solidity `0.8.28`.
+`hardhat.config.js` includes a localhost network (`http://127.0.0.1:8545`) with `timeout: 60000`.
 
-## 3) Directory Breakdown and Intent
+## 3) Directory Intent
 
-### Source and config
-- `contracts/`
-  - `EToken.sol`
-  - `EnergyMarketplace.sol`
-  - `SimpleStorage.sol`
-- `hardhat.config.js`
+- `contracts/`: on-chain business logic
+- `scripts/`: deployment automation
+- `test/`: behavior validation
+- `artifacts/` and `cache/`: generated outputs
 
-### Deployment
-- `scripts/deploy.js` (SimpleStorage)
-- `scripts/deployToken.js` (EToken only)
-- `scripts/deployMarketplace.js` (EToken + Marketplace + seed mint)
+## 4) Contract Engineering
 
-### Validation
-- `test/EToken.test.js`
-- `test/EnergyMarketplace.test.js`
+### 4.1 `EToken.sol`
 
-### Generated outputs
-- `artifacts/` and `cache/` from compilation
-- ABIs consumed by frontend are produced here
+Inheritance:
+- `ERC20`
+- `Ownable`
 
-## 4) Contract-by-Contract Engineering Detail
+Behavior:
+- constructor mints `1000 * 10^decimals()` to deployer
+- owner-only `mint(address,uint256)` mints `amount * 10^decimals()`
 
-## 4.1 EToken (`contracts/EToken.sol`)
+Operational implication:
+- mint callers must pass human token units, not pre-scaled base units
 
-### Inheritance
-- `ERC20` from OpenZeppelin
-- `Ownable` for privileged minting
+### 4.2 `EnergyMarketplace.sol`
 
-### Constructor behavior
-- Name: `EnergyToken`
-- Symbol: `ETK`
-- Mints initial supply of 1000 ETK to deployer (`1000 * 10**decimals()`)
+Key state:
+- `energyToken`
+- `listings` mapping and `listingCount`
+- `loyaltyPoints`
+- `collectedFees`
 
-### Mint function
-- Restricted by `onlyOwner`
-- Mints `amount * 10**decimals()` to target address
-
-### Design implication
-The mint function expects human token units as input (e.g., `500`), not already-scaled base units. If clients pre-scale, supply will be magnified.
-
-## 4.2 EnergyMarketplace (`contracts/EnergyMarketplace.sol`)
-
-### Core state
-- `energyToken`: token contract reference
-- `listings`: mapping of listing ID to listing struct
-- `listingCount`: monotonic listing index
-- `loyaltyPoints`: per-address points ledger
-- `collectedFees`: platform fee pool
-
-### Listing model
-`Listing` contains:
-- seller address
-- `amountETK` (human unit amount)
-- `priceWei`
-- active flag
-
-### Fee + loyalty constants
+Constants:
 - `FEE_PERCENT = 2`
 - `POINTS_PER_TRADE = 10`
 
-### Main functions
+Key functions:
+- `listEnergy(amountETK, priceWei)`
+  - validates inputs
+  - pulls `amountETK * 10^18` from seller into escrow
+  - stores active listing and emits `EnergyListed`
+- `buyEnergy(listingId)`
+  - validates active listing, buyer != seller, exact ETH amount
+  - computes loyalty discount via `getDiscount`
+  - updates listing status before transfers
+  - transfers ETK to buyer and ETH minus fee to seller
+  - accumulates fees and awards loyalty points
+  - emits `EnergyTraded`
+- `cancelListing(listingId)`
+  - seller-only cancellation and escrow return
+- `withdrawFees()`
+  - owner-only transfer of collected platform fees
+- `getDiscount(address)`
+  - 10/25/50 percent discount tiers by points
 
-#### `listEnergy(amountETK, priceWei)`
-- Validates amount and price > 0
-- Pulls tokens from seller into escrow with `transferFrom`
-- Internally multiplies by `10**18` for token transfer
-- Creates active listing and emits `EnergyListed`
+### 4.3 `SimpleStorage.sol`
 
-#### `buyEnergy(listingId)`
-- Requires active listing, non-self purchase, exact ETH price
-- Computes fee with loyalty-based discount tiers
-- Sets listing inactive before external transfers
-- Transfers ETK to buyer (`amountETK * 10**18`)
-- Sends seller ETH minus fee
-- Accumulates fees
-- Awards loyalty points to both buyer and seller
-- Emits `EnergyTraded`
+Basic standalone storage contract, unrelated to marketplace flow.
 
-#### `cancelListing(listingId)`
-- Seller-only cancellation
-- Marks listing inactive
-- Returns ETK from escrow to seller
-- Emits `ListingCancelled`
+## 5) Test Coverage
 
-#### `withdrawFees()`
-- Owner-only transfer of accumulated fee pool
+### `test/EToken.test.js`
+Verifies:
+- deployer initial token supply
+- token name/symbol
+- owner minting
+- non-owner mint revert
 
-#### `getDiscount(user)`
-Tier schedule:
-- >=10 points: 10%
-- >=50 points: 25%
-- >=100 points: 50%
-
-#### `getListing(listingId)`
-- Exposes listing fields for frontend consumption
-
-## 4.3 SimpleStorage (`contracts/SimpleStorage.sol`)
-A basic educational contract for storing and retrieving one `uint256` value. Independent from marketplace logic.
-
-## 5) Test Suite Analysis
-
-## 5.1 EToken tests
-Validates:
-- initial deployer allocation (1000 ETK)
-- token metadata (name/symbol)
-- owner mint success
-- non-owner mint rejection with custom Ownable error
-
-## 5.2 EnergyMarketplace tests
-Validates:
-- listing creation and active state
-- escrow + purchase transfer behavior
+### `test/EnergyMarketplace.test.js`
+Verifies:
+- listing creation
+- buy flow token + ETH movement
 - 2% fee accounting
 - loyalty point accrual
-- discount application on subsequent trades
-- listing cancel path and token return
-- key revert scenarios:
-  - inactive listing purchase
-  - seller self-purchase
-  - incorrect ETH sent
+- discount behavior in follow-up trade
+- listing cancellation
+- revert paths (inactive listing, self-buy, wrong ETH)
 - owner fee withdrawal
 
-Overall, tests provide good functional coverage for the main happy paths and important guards.
+## 6) Script and Workflow Changes (Current)
 
-## 6) Deployment Workflow Engineering
+`package.json` scripts are now explicit and usable:
 
-### Script options
-- `deploy.js`: deploys only `SimpleStorage`
-- `deployToken.js`: deploys only `EToken`
-- `deployMarketplace.js`: deploys token + marketplace and mints seed ETK to seller account
+- `npm run compile`
+- `npm test`
+- `npm run node`
+- `npm run deploy`
 
-### Typical local deployment sequence
-1. Start Hardhat local network (`npx hardhat node`) in one terminal.
-2. Run deploy script against localhost network.
-3. Capture printed contract addresses.
-4. Copy addresses to frontend `src/contracts/config.js`.
-5. Copy ABI files from `artifacts/contracts/...` into frontend `src/contracts/`.
+`scripts/deployMarketplace.js` now does more than deployment:
 
-## 7) Reproducibility: How to Build the Same dem-project
+1. Deploys `EToken`
+2. Deploys `EnergyMarketplace`
+3. Mints 500 ETK to local seller account
+4. Copies ABI files to frontend contracts directory
+5. Writes `dem-frontend/.env` with deployed addresses
 
-1. Initialize project
-- `mkdir dem-project && cd dem-project`
-- `npm init -y`
-- `npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox`
-- `npm install @openzeppelin/contracts`
+This eliminates manual ABI/address synchronization for local development.
 
-2. Initialize hardhat config and set Solidity 0.8.28.
+## 7) Local Runbook
 
-3. Implement contracts
-- `EToken.sol` with ERC20 + Ownable minting
-- `EnergyMarketplace.sol` with escrow/listings/fees/loyalty
+Terminal A:
 
-4. Add deploy scripts for token and marketplace.
+```bash
+cd dem-project
+npm run node
+```
 
-5. Add tests for token and marketplace paths.
+Terminal B:
 
-6. Run:
-- `npx hardhat compile`
-- `npx hardhat test`
+```bash
+cd dem-project
+npm run deploy
+```
 
-## 8) Current Operational Notes
-- `package.json` test script is placeholder (`"Error: no test specified"`), but project tests are run through Hardhat CLI directly (`npx hardhat test`).
-- Generated artifacts in `artifacts/` and `cache/` suggest contracts were compiled and used.
+Terminal C (frontend):
 
-## 9) Strengths
-- Clear separation of token and market responsibilities
-- Uses OpenZeppelin security primitives
-- Includes practical testing of business logic
-- Includes deployment scripts supporting local demo workflows
+```bash
+cd ../dem-frontend
+npm run dev
+```
 
-## 10) Risks and Design Caveats
-- Unit conversion conventions must be consistent between frontend and contract calls.
-- Event/state reads can become heavy on large chains without indexing strategy.
-- ETH transfer uses low-level call; checks are present but no reentrancy guard layer is used.
+## 8) Strengths
 
-## 11) Summary
-`dem-project` is a practical Hardhat smart contract implementation for a decentralized energy marketplace concept, complete with contract logic, tests, and deployment scripts suitable for local and educational dApp development.
+- clear token-market responsibility split
+- practical test suite for critical business paths
+- improved deploy ergonomics via frontend auto-sync
+- straightforward local developer workflow
+
+## 9) Risks / Hardening Targets
+
+- strict unit consistency remains important across frontend and contracts
+- no dedicated reentrancy guard modifier on marketplace write paths
+- indexing strategy needed for scale beyond local/demo event queries
+
+## 10) Summary
+`dem-project` is a solid Hardhat backend with working tests and upgraded deployment automation, making it easier to run the full dApp stack consistently on localhost.

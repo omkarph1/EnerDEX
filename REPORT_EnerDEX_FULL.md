@@ -1,158 +1,142 @@
-# EnerDEX Full Project Report (End-to-End)
+# EnerDEX Full Project Report 
 
-## 1) Executive Overview
-EnerDEX is a two-part decentralized application composed of:
-- `dem-project`: blockchain layer (smart contracts + tests + deployment)
-- `dem-frontend`: web client layer (wallet UI + contract interactions)
+## 1) Executive Summary
+EnerDEX is a full-stack decentralized energy marketplace with two coordinated codebases:
+- `dem-project` (Hardhat + Solidity smart contracts)
+- `dem-frontend` (React + Vite + Ethers dApp)
 
-Together they implement a decentralized energy marketplace where ETK tokens represent energy units and are traded via escrow-based listings.
+Users trade ETK (energy-token units), while the marketplace enforces escrow, fees, and loyalty discount rules on-chain.
 
-## 2) End-to-End Architecture
+## 2) Current Architecture
 
-## 2.1 High-level components
-1. Smart contracts (Hardhat/Solidity)
-- `EToken`: ERC20 tokenization of energy units
-- `EnergyMarketplace`: listing, purchase, escrow, platform fees, loyalty discounts
+### 2.1 Blockchain Layer (`dem-project`)
+- `EToken.sol`: ERC20 token (`EnergyToken`, symbol `ETK`) with owner-only minting
+- `EnergyMarketplace.sol`: listing, escrow, purchase, fee collection, loyalty points
+- `SimpleStorage.sol`: independent basic sample contract
+- Hardhat tests cover token and marketplace paths
 
-2. Frontend (React/Vite/Ethers)
-- Wallet connectivity (MetaMask)
-- Read/write interactions with deployed contracts
-- UI analytics from chain data and events
+### 2.2 Frontend Layer (`dem-frontend`)
+- Wallet-based dApp UI around MetaMask
+- Contract reads: balances, listings, loyalty points, collected fees
+- Contract writes: list, buy, cancel, mint, withdraw fees
+- Event-based history and seller income analytics
 
-3. Integration bridge
-- ABI files from Hardhat artifacts copied to frontend `src/contracts`
-- Contract addresses set in frontend config
+### 2.3 Integration Layer (Updated)
+Latest workflow improvement in current codebase:
+- Deploy script auto-copies ABIs to frontend:
+	- `dem-frontend/src/contracts/EToken.json`
+	- `dem-frontend/src/contracts/EnergyMarketplace.json`
+- Deploy script auto-writes frontend environment file:
+	- `dem-frontend/.env`
+- Frontend address config now resolves from env vars in `src/contracts/config.js`
 
-## 2.2 Data and control flow
+This replaced the older manual address-edit pattern.
 
-### Listing flow
-1. Seller enters ETK amount + ETH price in frontend.
-2. Frontend calls `token.approve(marketplace, amountInBaseUnits)`.
-3. Frontend calls `marketplace.listEnergy(amountInHumanUnits, priceWei)`.
-4. Contract pulls ETK into escrow and stores listing.
+## 3) Business Flow Trace
 
-### Purchase flow
-1. Buyer selects listing in frontend.
+### 3.1 Listing
+1. Seller enters ETK amount and ETH price in frontend.
+2. Frontend submits `approve(marketplace, amountInBaseUnits)`.
+3. Frontend calls `listEnergy(amountETK, priceWei)`.
+4. Contract escrows `amountETK * 10^18` token units.
+
+### 3.2 Purchase
+1. Buyer chooses active listing.
 2. Frontend calls `buyEnergy(listingId)` with exact ETH value.
-3. Contract validates listing and price, computes fee with discount.
-4. Contract transfers ETK to buyer and ETH (minus fee) to seller.
-5. Loyalty points updated for both participants.
+3. Contract validates listing and computes fee with discount.
+4. Contract transfers ETK to buyer and ETH-minus-fee to seller.
+5. Both buyer and seller receive loyalty points.
 
-### History/analytics flow
+### 3.3 History and Analytics
 1. Frontend queries `EnergyListed` and `EnergyTraded` events.
-2. Builds sortable local transaction list.
-3. Calculates income metrics and ETK sold summary.
+2. Events are merged and sorted by block.
+3. Seller income summary is computed from trade events.
 
-## 3) dem-frontend Deep Integration Story
+## 4) Verified Change Set in Latest Commit
 
-### What it does
-- Connects/disconnects wallet and supports account switching.
-- Reads live balances and marketplace state.
-- Handles listing/buying/canceling actions.
-- Shows owner-only controls: mint token, withdraw fees.
-- Computes and displays loyalty tiers and fee savings.
+Latest commit updates project behavior in these files:
+- `dem-frontend/src/contracts/config.js`
+- `dem-project/hardhat.config.js`
+- `dem-project/package.json`
+- `dem-project/scripts/deployMarketplace.js`
+- `dem-frontend/.gitignore`
 
-### How integration is achieved
-- Ethers `BrowserProvider(window.ethereum)`
-- ABI + address driven contract construction
-- Asynchronous flows with loading/status handling
-- Unit conversion helpers (`parseEther`, `formatEther`, `parseUnits`, `formatUnits`)
+Key outcomes:
+- standardized npm script commands in smart-contract project
+- localhost network settings confirmed in Hardhat config
+- deployment now auto-syncs frontend ABI + address environment
+- frontend `.env` intentionally ignored by git
 
-## 4) dem-project Deep Integration Story
+## 5) Command Reference (Current)
 
-### What it does
-- Defines enforceable on-chain business rules.
-- Maintains escrow, listing lifecycle, fee accounting.
-- Maintains loyalty and discount policy.
-- Emits events consumed by frontend analytics/history.
-- Validates behavior via test suite.
+### 5.1 Smart contracts (`dem-project`)
 
-### How integration is achieved
-- Hardhat compilation outputs ABIs
-- Deployment scripts print addresses for frontend config
-- Same chain network used by wallet/frontend and deployed contracts
+```bash
+cd dem-project
+npm install
+npm run compile
+npm test
+npm run node
+npm run deploy
+```
 
-## 5) Full Rebuild Guide: How to Recreate BLC from Scratch
+### 5.2 Frontend (`dem-frontend`)
 
-## 5.1 Build blockchain layer first
-1. Initialize hardhat project and install toolbox + OpenZeppelin.
-2. Implement contracts (`EToken`, `EnergyMarketplace`).
-3. Write tests and pass them (`npx hardhat test`).
-4. Deploy token and marketplace.
-5. Capture deployed addresses.
-6. Copy ABI artifacts.
+```bash
+cd dem-frontend
+npm install
+npm run dev
+npm run build
+npm run lint
+```
 
-## 5.2 Build frontend layer
-1. Scaffold React app with Vite.
-2. Install `ethers`.
-3. Place ABIs under `src/contracts`.
-4. Add `config.js` with deployed addresses.
-5. Implement app flows:
-- wallet connect
-- read state
-- write tx actions
-- events-based history
-6. Apply CSS system and responsive layouts.
+## 6) End-to-End Local Runbook
 
-## 5.3 Wire and validate end-to-end
-1. Start local node.
-2. Import funded accounts to MetaMask (local dev).
-3. Deploy contracts.
-4. Update frontend addresses.
-5. Run frontend dev server.
-6. Execute scenario tests manually:
-- mint
-- list
-- buy
-- cancel
-- fee withdrawal
-- loyalty transitions
+1. Terminal A:
 
-## 6) Technical Quality Assessment
+```bash
+cd dem-project
+npm run node
+```
 
-## 6.1 Strengths
-- Full-stack dApp architecture with practical feature depth
-- Event-driven history, not just direct storage reads
-- Test coverage on core marketplace rules
-- Clean separation of blockchain and frontend folders
+2. Terminal B:
 
-## 6.2 Gaps and risks
-- Frontend and contract unit conventions require strict consistency.
-- Frontend app is monolithic and could be componentized.
-- Hardcoded addresses reduce portability across networks.
-- Event querying from genesis may slow at scale.
-- Placeholder npm test script in `dem-project/package.json` can confuse automation.
+```bash
+cd dem-project
+npm run deploy
+```
 
-## 7) Recommended Project Hardening Path
-1. Introduce `.env` based network/address config in frontend.
-2. Split `App.jsx` into feature modules and hooks.
-3. Add frontend test coverage (unit + integration + e2e).
-4. Add deployment metadata/versioning for ABI-address sync.
-5. Add indexing strategy (The Graph/custom indexer) for scalable history.
-6. Add security hardening pass for marketplace contract (reentrancy protections, deeper invariants).
+3. Terminal C:
 
-## 8) Feature Traceability Matrix
+```bash
+cd dem-frontend
+npm run dev
+```
 
-### User capability -> Contract function -> Frontend flow
-- Mint ETK -> `EToken.mint` -> owner admin mint panel
-- List energy -> `EnergyMarketplace.listEnergy` -> sell form + approve flow
-- Buy listing -> `EnergyMarketplace.buyEnergy` -> market listing buy action
-- Cancel listing -> `EnergyMarketplace.cancelListing` -> seller cancel action
-- Withdraw fees -> `EnergyMarketplace.withdrawFees` -> owner admin button
-- Loyalty discount -> `EnergyMarketplace.getDiscount` + internal fee math -> dashboard/loyalty displays
+4. In browser:
+- connect MetaMask to localhost
+- switch to funded test account
+- perform mint/list/buy/cancel scenarios
 
-## 9) Operational Command Reference
+## 7) Unit Convention and Operational Caveat
 
-### dem-project
-- Compile: `npx hardhat compile`
-- Test: `npx hardhat test`
-- Local node: `npx hardhat node`
-- Deploy scripts: `npx hardhat run scripts/deployMarketplace.js --network localhost`
+`EToken.mint(to, amount)` multiplies by decimals internally.
 
-### dem-frontend
-- Dev server: `npm run dev`
-- Build: `npm run build`
-- Lint: `npm run lint`
+That means callers should pass human units (example: `500`), not pre-scaled `10^18` values. Frontend mint flow currently follows this convention.
 
-## 10) Final Conclusion
-BLC is a complete full-stack dApp prototype for decentralized energy trading, with meaningful on-chain business logic and a production-style frontend interaction model. The project demonstrates strong practical understanding of token mechanics, escrow trading, wallet integration, and user-facing blockchain UX patterns.
+## 8) Quality Snapshot
+
+### Strengths
+- Complete full-stack architecture with clear layer separation
+- Practical marketplace logic with fee/loyalty mechanism
+- Working Hardhat tests for token and marketplace rules
+- Improved deploy-to-frontend automation
+
+### Risks / Next Improvements
+- `App.jsx` remains monolithic and would benefit from component split
+- querying events from block 0 may become expensive on long-lived networks
+- no frontend automated test suite yet
+- marketplace has no explicit reentrancy guard modifier (state-updates-first ordering is used)
+
+## 9) Conclusion
+BLC currently stands as a functioning end-to-end prototype of decentralized energy trading with improved deployment ergonomics, cleaner contract/frontend synchronization, and reproducible local developer workflow.

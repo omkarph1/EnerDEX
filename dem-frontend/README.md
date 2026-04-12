@@ -1,100 +1,102 @@
 # dem-frontend
 
-React + Vite frontend for the BLC decentralized energy marketplace.
+React + Vite dApp frontend for EnerDEX.
 
-This app connects to the deployed smart contracts and provides:
+It connects to `EToken` and `EnergyMarketplace` contracts and provides:
 - wallet connection and account switching
-- ETK/ETH balance dashboard
-- list, buy, and cancel energy listings
-- on-chain history and seller income stats
-- loyalty points and fee discount views
-- owner-only admin actions (mint ETK, withdraw fees)
+- ETK and ETH balance dashboard
+- listing, buying, and canceling energy offers
+- owner-only actions (mint ETK, withdraw collected fees)
+- loyalty tier/discount display
+- event-based history and seller income analytics
 
 ## Tech Stack
 
 - React 19
 - Vite 8
 - Ethers v6
-- Plain CSS (custom theme in App.css)
+- Custom CSS UI (`src/App.css`)
 
-## Folder Highlights
+## Important Files
 
-- src/App.jsx: main dApp logic and UI
-- src/App.css: full styling system
-- src/contracts/EToken.json: token ABI
-- src/contracts/EnergyMarketplace.json: marketplace ABI
-- src/contracts/config.js: deployed contract addresses
+- `src/App.jsx`: UI and contract interaction logic
+- `src/App.css`: complete styling layer
+- `src/contracts/EToken.json`: token ABI
+- `src/contracts/EnergyMarketplace.json`: marketplace ABI
+- `src/contracts/config.js`: reads deployed addresses from env
 
-## Prerequisites
+## Address Configuration (Current)
 
-- Node.js 18+
-- npm
-- MetaMask browser extension
-- Running blockchain network with deployed contracts (usually local Hardhat)
+`src/contracts/config.js` uses Vite env variables:
+
+```js
+export const ETOKEN_ADDRESS = import.meta.env.VITE_ETOKEN_ADDRESS;
+export const MARKETPLACE_ADDRESS = import.meta.env.VITE_MARKETPLACE_ADDRESS;
+```
+
+These values are generated automatically by `dem-project/scripts/deployMarketplace.js` into `dem-frontend/.env`.
 
 ## Setup
 
-1. Install dependencies:
-
 ```bash
+cd dem-frontend
 npm install
-```
-
-2. Ensure contract ABIs are present in src/contracts:
-- EToken.json
-- EnergyMarketplace.json
-
-3. Set deployed addresses in src/contracts/config.js:
-
-```js
-export const ETOKEN_ADDRESS = "<deployed-token-address>";
-export const MARKETPLACE_ADDRESS = "<deployed-marketplace-address>";
-```
-
-4. Start dev server:
-
-```bash
 npm run dev
 ```
 
+If contract env/ABI files are missing, run the deploy flow from `dem-project` first.
+
 ## Scripts
 
-- npm run dev: start local dev server
-- npm run build: production build
-- npm run preview: preview built app
-- npm run lint: run ESLint
+- `npm run dev`: start local dev server
+- `npm run build`: production build
+- `npm run preview`: preview production build
+- `npm run lint`: run ESLint
 
-## Contract Interaction Flow
+## Expected Local Workflow
 
-### Read flow
-- loadData reads ETH balance, ETK balance, loyalty points, discount, fees, and active listings.
-- loadHistory reads EnergyListed and EnergyTraded events.
+1. Start local chain in `dem-project`:
 
-### Write flow
-- listEnergy:
-	- approve marketplace to spend ETK
-	- create listing on marketplace
-- buyEnergy: buys a listing by sending exact ETH
-- cancelListing: seller cancels own listing
-- withdrawFees: owner withdraws accumulated platform fees
-- mintTokens: owner mints ETK to a target wallet
+```bash
+cd ../dem-project
+npm run node
+```
 
-## Important Unit Convention
+2. Deploy and auto-sync frontend contract files (new terminal):
 
-The current token contract multiplies mint amount by decimals internally.
+```bash
+cd ../dem-project
+npm run deploy
+```
 
-So in frontend mint flow, send human token amount directly (example: 500), not parseUnits(..., 18).
+3. Run frontend:
 
-## Typical Local Development
+```bash
+cd ../dem-frontend
+npm run dev
+```
 
-1. Start Hardhat node in dem-project.
-2. Deploy contracts from dem-project scripts.
-3. Copy addresses to src/contracts/config.js.
-4. Copy ABIs from dem-project artifacts to src/contracts.
-5. Run npm run dev and connect MetaMask to localhost network.
+## Contract Interaction Summary
+
+### Read paths
+- `loadData()` reads balances, loyalty, discount, fees, listings
+- `loadHistory()` reads `EnergyListed` and `EnergyTraded` events
+
+### Write paths
+- `listEnergy()`: approve ETK then list on marketplace
+- `buyEnergy()`: buy listing with exact ETH
+- `cancelListing()`: seller cancels own listing
+- `withdrawFees()`: owner withdraws platform fee pool
+- `mintTokens()`: owner mints ETK to target wallet
+
+## Unit Convention
+
+`EToken.mint` scales by decimals inside the contract.
+
+Frontend mint call passes human units (example: `500`) and does not pre-scale with `parseUnits`.
 
 ## Notes
 
-- If wallet is not connected, the app shows a welcome screen.
-- Owner-only UI elements are shown only when connected account is contract owner.
-- History queries currently scan from block 0, which is fine for local/demo usage.
+- App shows a welcome screen when wallet is disconnected.
+- Owner-only UI is gated by on-chain `owner()` check.
+- History currently queries from block `0` (fine for local/demo networks).
