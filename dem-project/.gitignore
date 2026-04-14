@@ -15,3 +15,14 @@ node_modules
 
 # Hardhat Ignition default folder for deployments against a local node
 ignition/deployments/chain-31337
+
+# Private key / deployment config
+.env.local
+.env.*.local
+
+# Hardhat network debug logs
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db

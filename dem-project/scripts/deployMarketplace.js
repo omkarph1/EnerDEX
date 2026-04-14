@@ -1,67 +1,67 @@
-const hre = require("hardhat");
+const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
 async function main() {
-  console.log("🚀 Starting EnerDEX deployment...\n");
+  const [deployer] = await ethers.getSigners();
+  console.log("\n🚀 Deploying EnerDEX contracts...");
+  console.log("📬 Deployer:", deployer.address);
 
-  // ── Step 1: Deploy EToken ──────────────────────────────────────────
-  const EToken = await hre.ethers.getContractFactory("EToken");
-  const token = await EToken.deploy();
-  await token.waitForDeployment();
-  const tokenAddress = await token.getAddress();
-  console.log("✅ EToken deployed to:", tokenAddress);
+  // ── Deploy EToken ──────────────────────────────────────────
+  const EToken = await ethers.getContractFactory("EToken");
+  const etoken = await EToken.deploy();
+  await etoken.waitForDeployment();
+  const etokenAddress = await etoken.getAddress();
+  console.log("✅ EToken deployed to:", etokenAddress);
 
-  // ── Step 2: Deploy Marketplace with EToken address ────────────────
-  const Marketplace = await hre.ethers.getContractFactory("EnergyMarketplace");
-  const marketplace = await Marketplace.deploy(tokenAddress);
+  // ── Deploy EnergyMarketplace ───────────────────────────────
+  const Marketplace = await ethers.getContractFactory("EnergyMarketplace");
+  const marketplace = await Marketplace.deploy(etokenAddress);
   await marketplace.waitForDeployment();
   const marketplaceAddress = await marketplace.getAddress();
-  console.log("✅ EnergyMarketplace deployed to:", marketplaceAddress);
+  console.log("✅ Marketplace deployed to:", marketplaceAddress);
 
-  // ── Step 3: Mint 500 ETK to a test seller (Account #1) ────────────
-  const [owner, seller] = await hre.ethers.getSigners();
-  await token.mint(seller.address, 500);
-  console.log("✅ Minted 500 ETK to seller:", seller.address);
+  // ── Auto-update config.js ──────────────────────────────────
+  const configPath = path.join(__dirname, "../../dem-frontend/src/contracts/config.js");
+  fs.writeFileSync(configPath,
+    `// AUTO-GENERATED — do not edit manually
+export const ETOKEN_ADDRESS = "${etokenAddress}";
+export const MARKETPLACE_ADDRESS = "${marketplaceAddress}";
+`);
+  console.log("✅ config.js updated!");
 
-  // ── Step 4: Auto-copy ABIs to frontend ────────────────────────────
-  const artifactsBase = path.join(__dirname, "../artifacts/contracts");
-  const frontendContracts = path.join(__dirname, "../../dem-frontend/src/contracts");
+  // ── Auto-copy EToken ABI ───────────────────────────────────
+  const abiDir = path.join(__dirname, "../../dem-frontend/src/contracts/");
 
-  // Create the folder if it somehow doesn't exist
-  if (!fs.existsSync(frontendContracts)) {
-    fs.mkdirSync(frontendContracts, { recursive: true });
-  }
-
-  fs.copyFileSync(
-    path.join(artifactsBase, "EToken.sol/EToken.json"),
-    path.join(frontendContracts, "EToken.json")
+  const etokenArtifact = JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, "../artifacts/contracts/EToken.sol/EToken.json"),
+      "utf8"
+    )
   );
-  fs.copyFileSync(
-    path.join(artifactsBase, "EnergyMarketplace.sol/EnergyMarketplace.json"),
-    path.join(frontendContracts, "EnergyMarketplace.json")
+  fs.writeFileSync(
+    path.join(abiDir, "EToken.json"),
+    JSON.stringify(etokenArtifact, null, 2)
   );
-  console.log("✅ ABIs copied to dem-frontend/src/contracts/");
+  console.log("✅ EToken ABI copied!");
 
-  // ── Step 5: Auto-write .env in frontend ───────────────────────────
-  const envPath = path.join(__dirname, "../../dem-frontend/.env");
-  const envContent =
-    `VITE_ETOKEN_ADDRESS=${tokenAddress}\n` +
-    `VITE_MARKETPLACE_ADDRESS=${marketplaceAddress}\n`;
-  fs.writeFileSync(envPath, envContent);
-  console.log("✅ .env written to dem-frontend/");
+  // ── Auto-copy Marketplace ABI ──────────────────────────────
+  const marketArtifact = JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, "../artifacts/contracts/EnergyMarketplace.sol/EnergyMarketplace.json"),
+      "utf8"
+    )
+  );
+  fs.writeFileSync(
+    path.join(abiDir, "EnergyMarketplace.json"),
+    JSON.stringify(marketArtifact, null, 2)
+  );
+  console.log("✅ Marketplace ABI copied!");
 
-  // ── Summary ───────────────────────────────────────────────────────
-  console.log("\n══════════════════════════════════════════════════════");
-  console.log("🎉 DEPLOYMENT COMPLETE — Frontend auto-synced!");
-  console.log("   EToken:      ", tokenAddress);
-  console.log("   Marketplace: ", marketplaceAddress);
-  console.log("   Seller:      ", seller.address, "(500 ETK minted)");
-  console.log("\n   ▶  cd dem-frontend && npm run dev");
-  console.log("══════════════════════════════════════════════════════\n");
+  console.log("\n🎉 Ready! Now start your frontend: cd dem-frontend && npm run dev\n");
 }
 
-main().catch((error) => {
-  console.error(error);
+main().catch((err) => {
+  console.error("❌ Deploy failed:", err);
   process.exit(1);
 });

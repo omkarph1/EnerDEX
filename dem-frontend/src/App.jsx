@@ -293,6 +293,32 @@ function App() {
   }
 
   // ─── Effects ─────────────────────────────────────────────────────────────────
+  // ── NEW: Detect Hardhat node restart ──────────────────────────
+  useEffect(() => {
+    const checkIfNodeRestarted = async () => {
+      if (!window.ethereum) return;
+      try {
+        const chainId = await window.ethereum.request({ method: "eth_chainId" });
+        if (chainId === "0x7a69") {
+          const blockHex = await window.ethereum.request({ method: "eth_blockNumber" });
+          const blockNum = parseInt(blockHex, 16);
+          if (blockNum < 4) {
+            alert(
+              "⚠️ Hardhat node was restarted!\n\n" +
+              "Please reset MetaMask:\n" +
+              "Settings → Advanced → Reset Account\n\n" +
+              "Then refresh this page."
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Network check failed:", err);
+      }
+    };
+    checkIfNodeRestarted();
+  }, []);
+  // ── END NEW ────────────────────────────────────────────────────
+
   useEffect(() => {
     if (account) { loadData(); loadHistory(); }
   }, [account, loadData, loadHistory]);
@@ -311,7 +337,6 @@ function App() {
       });
     }
   }, []);
-
   // ─── Loyalty tier helper ────────────────────────────────────────────────────
   function loyaltyTier(pts) {
     const p = parseInt(pts);
