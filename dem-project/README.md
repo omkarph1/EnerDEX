@@ -43,12 +43,11 @@ Smart contracts · deployment scripts · full test suite.
 dem-project/
 ├── contracts/
 │   ├── EToken.sol               ← ERC-20 energy token (ETK)
-│   ├── EnergyMarketplace.sol    ← Escrow + fees + loyalty discount logic
-│   └── SimpleStorage.sol        ← Sample contract (demo / learning only)
+│   └── EnergyMarketplace.sol    ← Escrow + fees + loyalty discount logic
 ├── scripts/
 │   ├── deployMarketplace.js     ← Primary: deploy + auto-sync frontend
 │   ├── deployToken.js           ← Deploy EToken only
-│   └── deploy.js                ← Deploy SimpleStorage only
+│   └── deploy.js                ← Simple deploy script
 ├── test/
 │   ├── EToken.test.js
 │   └── EnergyMarketplace.test.js
@@ -138,11 +137,7 @@ State is always updated **before** any external calls — preventing reentrancy 
 
 ---
 
-### `SimpleStorage.sol` — Sample Contract
 
-Minimal standalone contract used for basic deployment demonstration. Not part of the EnerDEX trading flow.
-
----
 
 ## 📜 Scripts
 
@@ -177,7 +172,6 @@ Expected output:
 | Script | Description |
 |---|---|
 | `deployToken.js` | Deploy `EToken` only — useful for isolated token testing |
-| `deploy.js` | Deploy `SimpleStorage` only — basic deployment demo |
 
 ---
 

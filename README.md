@@ -49,12 +49,10 @@ EnerDEX/
 ├── dem-project/                       ← Blockchain layer
 │   ├── contracts/
 │   │   ├── EToken.sol                 ← ERC-20 energy token (ETK)
-│   │   ├── EnergyMarketplace.sol      ← Escrow + fees + loyalty logic
-│   │   └── SimpleStorage.sol          ← Sample contract (demo only)
+│   │   └── EnergyMarketplace.sol      ← Escrow + fees + loyalty logic
 │   ├── scripts/
 │   │   ├── deployMarketplace.js       ← Deploy + auto-sync frontend (primary)
-│   │   ├── deployToken.js             ← Deploy EToken only
-│   │   └── deploy.js                  ← Deploy SimpleStorage only
+│   │   └── deployToken.js             ← Deploy EToken only
 │   ├── test/
 │   │   ├── EToken.test.js
 │   │   └── EnergyMarketplace.test.js
@@ -62,8 +60,12 @@ EnerDEX/
 │
 ├── dem-frontend/                      ← React frontend
 │   └── src/
-│       ├── App.jsx                    ← Main dApp UI (5 tabs)
-│       ├── App.css                    ← Dark theme styles
+│       ├── components/                ← Reusable UI components
+│       ├── context/                   ← React Context (WalletContext)
+│       ├── pages/                     ← App pages/tabs
+│       ├── utils/                     ← Helper functions
+│       ├── App.jsx                    ← Main App router
+│       ├── App.css                    ← Dual theme styles (Dark/Light)
 │       └── contracts/
 │           ├── config.js              ← Reads addresses from .env
 │           ├── EToken.json            ← ABI (auto-copied on deploy)

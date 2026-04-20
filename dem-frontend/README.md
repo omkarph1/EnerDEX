@@ -43,8 +43,12 @@ MetaMask wallet integration · live on-chain data · full trading interface.
 ```
 dem-frontend/
 ├── src/
-│   ├── App.jsx                       ← All UI and contract interaction logic
-│   ├── App.css                       ← Complete dark theme styling layer
+│   ├── components/                   ← Reusable UI components
+│   ├── context/                      ← React Context (WalletContext)
+│   ├── pages/                        ← App pages/tabs
+│   ├── utils/                        ← Helper functions
+│   ├── App.jsx                       ← Main App router
+│   ├── App.css                       ← Complete dual theme styling layer (Dark/Light)
 │   ├── main.jsx                      ← React DOM entry point
 │   ├── index.css                     ← Global base styles
 │   └── contracts/
@@ -165,7 +169,7 @@ Called on wallet connection and after every write transaction to keep the UI in 
 | `EnergyListed` | Every listing ever created |
 | `EnergyTraded` | Every completed purchase |
 
-Events are fetched from block `0`, merged, and sorted by block number. Seller income is computed from `EnergyTraded` events where the connected account is the seller.
+Events are fetched from block `0`, merged, and sorted by timestamp for human-readable dates. Seller income is computed from `EnergyTraded` events where the connected account is the seller.
 
 ### Write Operations
 

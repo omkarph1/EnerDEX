@@ -35,12 +35,10 @@
 dem-project/
 ├── contracts/
 │   ├── EToken.sol               # ERC-20 energy token
-│   ├── EnergyMarketplace.sol    # Escrow marketplace
-│   └── SimpleStorage.sol        # Sample contract (demo only)
+│   └── EnergyMarketplace.sol    # Escrow marketplace
 ├── scripts/
 │   ├── deployMarketplace.js     # Primary deployment script (+ frontend sync)
-│   ├── deployToken.js           # EToken-only deploy
-│   └── deploy.js                # SimpleStorage-only deploy
+│   └── deployToken.js           # EToken-only deploy
 ├── test/
 │   ├── EToken.test.js
 │   └── EnergyMarketplace.test.js
@@ -151,20 +149,15 @@ struct Listing {
 
 #### Security Design
 
-`buyEnergy` follows the **checks-effects-interactions** pattern:
-1. All `require` checks (listing validity, caller, value)
-2. State mutations (`isActive = false`, `collectedFees +=`)
-3. External token and ETH transfers
-
-This ordering prevents reentrancy attacks without requiring an explicit `ReentrancyGuard` modifier, though adding one would make the intent explicit and is recommended for production.
-
----
-
-### 4.3 `SimpleStorage.sol`
-
-A minimal contract used for foundational deployment demonstration. It has no connection to the EnerDEX trading flow and is not deployed by `deployMarketplace.js`.
+`buyEnergy` follows the **checks-effects-interactions** pattern and uses OpenZeppelin's `ReentrancyGuard` modifier for explicit security:
+1. `nonReentrant` modifier is applied to the function
+2. All `require` checks (listing validity, caller, value)
+3. State mutations (`isActive = false`, `collectedFees +=`)
+4. External token and ETH transfers
 
 ---
+
+
 
 ## 5. Deployment Script — `scripts/deployMarketplace.js`
 
@@ -261,7 +254,6 @@ npm run dev
 
 | Item | Detail | Recommendation |
 |---|---|---|
-| No explicit reentrancy guard | Relies on ordering only | Add `ReentrancyGuard` from OpenZeppelin for production |
 | Fixed fee and point constants | Cannot be updated without redeployment | Make configurable via owner-callable setters |
 | No custom Solidity errors | Uses string `require` — higher gas cost | Replace with `error` declarations and `revert` |
 | Marketplace scale | No event indexing strategy | Add The Graph support or block-range queries for production |
@@ -271,4 +263,4 @@ npm run dev
 
 ## 11. Summary
 
-`dem-project` provides a well-structured and fully tested smart contract backend for the EnerDEX platform. The deployment automation makes local development fast and reliable. For production readiness, the primary hardening targets are adding an explicit reentrancy guard, replacing string-based reverts with custom errors, and integrating a CI pipeline.
+`dem-project` provides a well-structured and fully tested smart contract backend for the EnerDEX platform. The deployment automation makes local development fast and reliable. For production readiness, the primary hardening targets are replacing string-based reverts with custom errors and integrating a CI pipeline.

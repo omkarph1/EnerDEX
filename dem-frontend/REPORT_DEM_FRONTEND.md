@@ -38,8 +38,12 @@ Runtime provider pattern:
 ```
 dem-frontend/
 ├── src/
-│   ├── App.jsx                       # Main component — all UI and contract logic
-│   ├── App.css                       # Full styling layer
+│   ├── components/                   # Reusable UI components
+│   ├── context/                      # React Context (WalletContext)
+│   ├── pages/                        # App pages/tabs
+│   ├── utils/                        # Helper functions
+│   ├── App.jsx                       # Main App router
+│   ├── App.css                       # Full styling layer (Dual themes)
 │   ├── main.jsx                      # React DOM entry point
 │   ├── index.css                     # Global base styles
 │   └── contracts/
@@ -78,7 +82,7 @@ This replaced an older pattern that required manually editing a static address f
 
 ## 5. Application State Model
 
-All state is managed within `App.jsx` using React hooks.
+All state is managed within `WalletContext.jsx` using React Context and custom hooks.
 
 | State Group | Variables |
 |---|---|
@@ -117,7 +121,7 @@ Queries event logs for the full transaction history.
 | `EnergyListed` | Marketplace contract event log, all blocks from `0` |
 | `EnergyTraded` | Marketplace contract event log, all blocks from `0` |
 
-Events are merged, sorted by block number, and rendered in the History tab. Seller income is computed from `EnergyTraded` events where the seller matches the connected account.
+Events are merged, sorted by timestamp, and rendered with human-readable dates in the History tab. Seller income is computed from `EnergyTraded` events where the seller matches the connected account.
 
 ### 6.3 Write — `getContracts()`
 
@@ -165,6 +169,7 @@ Used by all write actions to avoid repeated provider/signer construction.
 - **Status notifications:** Real-time messages track each transaction from submission through confirmation or failure
 - **Owner admin panel:** Rendered only when `isOwner === true` (verified via `etoken.owner()` on-chain)
 - **Convenience helpers:** One-click address and transaction hash copy across all views
+- **Theming:** Full support for both default Dark Mode and High-Contrast Light Mode with a fixed header to prevent overlaps.
 
 ---
 
@@ -200,7 +205,6 @@ Connect MetaMask to **Localhost 8545** and import a Hardhat test account. The se
 
 | Item | Current State | Recommendation |
 |---|---|---|
-| Code organisation | All logic in a single `App.jsx` | Refactor into dedicated components (Market, History, Dashboard) and custom hooks (`useContracts`, `useWallet`) |
 | Frontend testing | No automated test suite | Add Vitest + React Testing Library |
 | Event query range | Queries from block `0` | Parameterise with a deployment block to reduce query time as chain grows |
 | Error handling | Generic catch blocks | Improve user-facing error messages; distinguish contract reverts from network errors |
